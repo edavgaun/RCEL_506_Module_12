@@ -111,12 +111,18 @@ try:
 
         st.plotly_chart(fig, use_container_width=True)
 
-    # Optional Table
-    # Filter the dataframe based on the selection
-    specific_data = df_ecobici[df_ecobici['name'] == selected_id]
-    
-    # Display only the relevant columns for that one station
-    st.table(specific_data[['station_id', 'name', 'availability_pct', 'total_cap']])
+    # --- 5. DATA TABLE ---
+    with st.expander("View Station Details"):
+        if selected_id != "None":
+            # Filter by station_id since that's what selected_id holds
+            display_df = df_ecobici[df_ecobici['station_id'] == selected_id]
+        else:
+            display_df = df_ecobici
+
+        st.dataframe(
+            display_df[['station_id', 'name', 'availability_pct', 'total_cap', 'num_bikes_available']],
+            use_container_width=True
+        )
 
 except Exception as e:
     st.error(f"Error loading application: {e}")
