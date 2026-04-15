@@ -40,7 +40,7 @@ try:
 
     # --- ROW 1: Header ---
     st.title("🚲 EcoBici Station Finder: CDMX")
-    st.caption(f"Created by: Edgar Avalos Gauna | Data updated: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+    st.caption(f"Created by: Edgar Avalos Gauna | Data updated: {datetime.now().strftime('%d/%m/%Y - %H:%M:%S')}")
 
     # Quick Metrics
     m1, m2, m3 = st.columns(3)
