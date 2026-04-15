@@ -54,32 +54,32 @@ try:
     col1, col2 = st.columns([1, 3])
 
     with col1:
-    st.subheader("Controls")
+        st.subheader("Controls")
+        
+        # 1. Standard Dropdown
+        station_list = ["None"] + sorted(df_ecobici['station_id'].unique(), key=int)
+        selected_id = st.selectbox("Select a Station (ID):", station_list)
+        
+        # 2. PANIC BUTTONS (The Problem Solver)
+        st.write("---")
+        st.markdown("### 🚨 Quick Filters")
+        status_filter = st.radio(
+            "I am looking to:",
+            ["Show All", "Find a Bike (Stations with Bikes)", "Park my Bike (Stations with Docks)"]
+        )
     
-    # 1. Standard Dropdown
-    station_list = ["None"] + sorted(df_ecobici['station_id'].unique(), key=int)
-    selected_id = st.selectbox("Select a Station (ID):", station_list)
+        # Logic to filter the dataframe based on the "Panic" selection
+        if status_filter == "Find a Bike (Stations with Bikes)":
+            df_filtered = df_ecobici[df_ecobici['num_bikes_available'] > 0]
+            st.warning(f"Showing {len(df_filtered)} stations with bikes available.")
+        elif status_filter == "Park my Bike (Stations with Docks)":
+            df_filtered = df_ecobici[df_ecobici['num_docks_available'] > 0]
+            st.success(f"Showing {len(df_filtered)} stations with empty docks.")
+        else:
+            df_filtered = df_ecobici
     
-    # 2. PANIC BUTTONS (The Problem Solver)
-    st.write("---")
-    st.markdown("### 🚨 Quick Filters")
-    status_filter = st.radio(
-        "I am looking to:",
-        ["Show All", "Find a Bike (Stations with Bikes)", "Park my Bike (Stations with Docks)"]
-    )
-
-    # Logic to filter the dataframe based on the "Panic" selection
-    if status_filter == "Find a Bike (Stations with Bikes)":
-        df_filtered = df_ecobici[df_ecobici['num_bikes_available'] > 0]
-        st.warning(f"Showing {len(df_filtered)} stations with bikes available.")
-    elif status_filter == "Park my Bike (Stations with Docks)":
-        df_filtered = df_ecobici[df_ecobici['num_docks_available'] > 0]
-        st.success(f"Showing {len(df_filtered)} stations with empty docks.")
-    else:
-        df_filtered = df_ecobici
-
-    # 3. Zoom Control
-    zoom_val = st.slider("Map Zoom Level:", 10, 18, 13)
+        # 3. Zoom Control
+        zoom_val = st.slider("Map Zoom Level:", 10, 18, 13)
 
     with col2:
         # Markers size logic: Selected station becomes much larger
