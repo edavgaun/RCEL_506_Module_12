@@ -54,34 +54,39 @@ try:
     col1, col2 = st.columns([1, 3])
 
     with col1:
-        st.subheader("Controls")
-        
-        # Station Selector
-        station_list = sorted(df_ecobici['station_id'].unique(), key=int)
-        selected_id = st.selectbox("Select a Station (ID):", ["None"] + station_list)
-        
-        # Zoom Control
-        zoom_val = st.slider("Map Zoom Level:", 10, 18, 13)
+    st.subheader("Controls")
+    
+    # 1. Standard Dropdown
+    station_list = ["None"] + sorted(df_ecobici['station_id'].unique(), key=int)
+    selected_id = st.selectbox("Select a Station (ID):", station_list)
+    
+    # 2. PANIC BUTTONS (The Problem Solver)
+    st.write("---")
+    st.markdown("### 🚨 Quick Filters")
+    status_filter = st.radio(
+        "I am looking to:",
+        ["Show All", "Find a Bike (Stations with Bikes)", "Park my Bike (Stations with Docks)"]
+    )
 
-        # Highlight logic
-        if selected_id != "None":
-            selected_row = df_ecobici[df_ecobici['station_id'] == selected_id].iloc[0]
-            lat_map, lon_map = selected_row['lat'], selected_row['lon']
-            df_ecobici['is_selected'] = df_ecobici['station_id'] == selected_id
-            st.success(f"Selected: {selected_row['name']}")
-        else:
-            lat_map, lon_map = df_ecobici['lat'].mean(), df_ecobici['lon'].mean()
-            df_ecobici['is_selected'] = False
+    # Logic to filter the dataframe based on the "Panic" selection
+    if status_filter == "Find a Bike (Stations with Bikes)":
+        df_filtered = df_ecobici[df_ecobici['num_bikes_available'] > 0]
+        st.warning(f"Showing {len(df_filtered)} stations with bikes available.")
+    elif status_filter == "Park my Bike (Stations with Docks)":
+        df_filtered = df_ecobici[df_ecobici['num_docks_available'] > 0]
+        st.success(f"Showing {len(df_filtered)} stations with empty docks.")
+    else:
+        df_filtered = df_ecobici
 
-        # Legend Note
-        st.info("🔵 Blue: Full of bikes\n\n\n🔴 Red: Empty/Few bikes")
+    # 3. Zoom Control
+    zoom_val = st.slider("Map Zoom Level:", 10, 18, 13)
 
     with col2:
         # Markers size logic: Selected station becomes much larger
         df_ecobici['marker_size'] = df_ecobici['is_selected'].map({True: 50, False: 10})
 
         fig = px.scatter_mapbox(
-            df_ecobici,
+            df_filtered,
             lat="lat",
             lon="lon",
             hover_name="name",
@@ -120,7 +125,9 @@ try:
             display_df = df_ecobici
 
         st.dataframe(
-            display_df[['station_id', 'name', 'availability_pct', 'total_cap', 'num_bikes_available']],
+            display_df[['station_id', 'name', 'availability_pct', 'total_cap', 'num_bikes_available']]
+            .style.background_gradient(cmap='RdYlGn', subset=['availability_pct'])
+            .format({'availability_pct': '{:.1f}%'}), 
             use_container_width=True
         )
 
