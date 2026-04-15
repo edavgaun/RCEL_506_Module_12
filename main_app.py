@@ -1,52 +1,39 @@
 import streamlit as st
 import pandas as pd
 import requests
-import plotly.express as px
+import folium
+from streamlit_folium import st_folium
 from datetime import datetime
 
 # 1. Page Config
-st.set_page_config(page_title="EcoBici Real-Time CDMX", layout="wide")
+st.set_page_config(page_title="EcoBici Interactive", layout="wide")
 
-# --- DATA FETCHING (OPTIMIZED WITH CACHING) ---
-@st.cache_data(ttl=60) # Only fetches data once per minute
+@st.cache_data(ttl=60)
 def load_ecobici_data():
-    # URLs for Station Info and Real-time Status
     url_info = "https://gbfs.mex.lyftbikes.com/gbfs/en/station_information.json"
     url_status = "https://gbfs.mex.lyftbikes.com/gbfs/en/station_status.json"
-    
-    # Requesting data
     res_info = requests.get(url_info).json()
     df_info = pd.DataFrame(res_info['data']['stations'])
-    
     res_status = requests.get(url_status).json()
     df_status = pd.DataFrame(res_status['data']['stations'])
-    
-    # Merging and cleaning
-    df = pd.merge(
-        df_info[['station_id', 'name', 'lat', 'lon']], 
-        df_status[['station_id', 'num_bikes_available', 'num_docks_available']], 
-        on='station_id'
-    )
-    
-    # Normalization Logic
+    df = pd.merge(df_info[['station_id', 'name', 'lat', 'lon']], 
+                  df_status[['station_id', 'num_bikes_available', 'num_docks_available']], 
+                  on='station_id')
     df['total_cap'] = df['num_bikes_available'] + df['num_docks_available']
     df['availability_pct'] = (df['num_bikes_available'] / df['total_cap']).fillna(0) * 100
-    
     return df
 
-# Load the data
 try:
     df_ecobici = load_ecobici_data()
 
-    # --- ROW 1: Header ---
-    st.title("🚲 EcoBici Station Finder: CDMX")
-    st.caption(f"Created by: Edgar Avalos Gauna | Data updated: {datetime.now().strftime('%d/%m/%Y - %H:%M:%S')}")
+    # --- SESSION STATE INITIALIZATION ---
+    # This stores the "selected station" so both the map and dropdown can talk to it
+    if 'selected_station' not in st.session_state:
+        st.session_state.selected_station = "None"
 
-    # Quick Metrics
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total Stations", len(df_ecobici))
-    m2.metric("Available Bikes", df_ecobici['num_bikes_available'].sum())
-    m3.metric("Free Docks", df_ecobici['num_docks_available'].sum())
+    # --- ROW 1: Header ---
+    st.title("🚲 EcoBici Live Sync")
+    st.caption(f"Edgar Avalos Gauna | {datetime.now().strftime('%d/%m/%Y - %H:%M:%S')}")
 
     st.divider()
 
@@ -56,73 +43,71 @@ try:
     with col1:
         st.subheader("Controls")
         
-        # Station Selector
-        station_list = sorted(df_ecobici['station_id'].unique(), key=int)
-        selected_id = st.selectbox("Select a Station (ID):", ["None"] + station_list)
+        station_list = ["None"] + sorted(df_ecobici['station_id'].unique(), key=int)
         
-        # Zoom Control
-        zoom_val = st.slider("Map Zoom Level:", 10, 18, 13)
+        # We link the selectbox to our session state
+        selected_id = st.selectbox(
+            "Select Station (ID):", 
+            station_list, 
+            key="station_selector",
+            index=station_list.index(st.session_state.selected_station) 
+            if st.session_state.selected_station in station_list else 0
+        )
 
-        # Highlight logic
-        if selected_id != "None":
-            selected_row = df_ecobici[df_ecobici['station_id'] == selected_id].iloc[0]
-            lat_map, lon_map = selected_row['lat'], selected_row['lon']
-            df_ecobici['is_selected'] = df_ecobici['station_id'] == selected_id
-            st.success(f"Selected: {selected_row['name']}")
+        # Update session state if dropdown changes
+        st.session_state.selected_station = selected_id
+
+        if st.session_state.selected_station != "None":
+            sel_row = df_ecobici[df_ecobici['station_id'] == st.session_state.selected_station].iloc[0]
+            st.success(f"📍 {sel_row['name']}")
+            st.metric("Bikes Available", sel_row['num_bikes_available'])
         else:
-            lat_map, lon_map = df_ecobici['lat'].mean(), df_ecobici['lon'].mean()
-            df_ecobici['is_selected'] = False
-
-        # Legend Note
-        st.info("🔵 Blue: Full of bikes\n\n\n🔴 Red: Empty/Few bikes")
+            st.info("Click a marker on the map or use the dropdown.")
 
     with col2:
-        # Markers size logic: Selected station becomes much larger
-        df_ecobici['marker_size'] = df_ecobici['is_selected'].map({True: 50, False: 10})
+        # Define the Map
+        center_lat = df_ecobici['lat'].mean()
+        center_lon = df_ecobici['lon'].mean()
+        
+        # If a station is selected, center the map on it
+        if st.session_state.selected_station != "None":
+            sel_row = df_ecobici[df_ecobici['station_id'] == st.session_state.selected_station].iloc[0]
+            center_lat, center_lon = sel_row['lat'], sel_row['lon']
 
-        fig = px.scatter_mapbox(
-            df_ecobici,
-            lat="lat",
-            lon="lon",
-            hover_name="name",
-            hover_data={
-                "station_id": True,
-                "num_bikes_available": True,
-                "num_docks_available": True,
-                "availability_pct": ":.2f",
-                "lat": False,
-                "lon": False,
-                "marker_size": False
-            },
-            color="availability_pct",
-            color_continuous_scale="RdYlBu", # Red (Empty) to Blue (Full)
-            size="marker_size",
-            size_max=15,
-            zoom=zoom_val,
-            center={"lat": lat_map, "lon": lon_map},
-            height=600,
-            labels={"availability_pct": "Availability %"}
-        )
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=14, tiles="cartodbpositron")
 
-        fig.update_layout(
-            mapbox_style="carto-positron",
-            margin={"r":0,"t":0,"l":0,"b":0}
-        )
+        # Add all markers
+        for _, row in df_ecobici.iterrows():
+            # Color logic
+            color = "blue" if row['availability_pct'] > 50 else "red"
+            # Special icon if selected
+            icon_type = "star" if str(row['station_id']) == str(st.session_state.selected_station) else "info-sign"
+            
+            folium.Marker(
+                location=[row['lat'], row['lon']],
+                # Tooltip is what st_folium "reads" when clicked
+                tooltip=str(row['station_id']), 
+                icon=folium.Icon(color=color, icon=icon_type)
+            ).add_to(m)
 
-        st.plotly_chart(fig, use_container_width=True)
+        # RENDER MAP AND CATCH CLICK
+        map_data = st_folium(m, width=900, height=500, use_container_width=True)
 
-    # --- 5. DATA TABLE ---
-    with st.expander("View Station Details"):
-        if selected_id != "None":
-            # Filter by station_id since that's what selected_id holds
-            display_df = df_ecobici[df_ecobici['station_id'] == selected_id]
-        else:
-            display_df = df_ecobici
+        # Logic: If user clicks a marker, update session state and rerun
+        if map_data['last_object_clicked_tooltip']:
+            clicked_id = map_data['last_object_clicked_tooltip']
+            if clicked_id != st.session_state.selected_station:
+                st.session_state.selected_station = clicked_id
+                st.rerun()
 
-        st.dataframe(
-            display_df[['station_id', 'name', 'availability_pct', 'total_cap', 'num_bikes_available']],
-            use_container_width=True
-        )
+    # --- TABLE ---
+    st.subheader("Station Statistics")
+    if st.session_state.selected_station != "None":
+        display_df = df_ecobici[df_ecobici['station_id'] == st.session_state.selected_station]
+    else:
+        display_df = df_ecobici
+
+    st.dataframe(display_df, use_container_width=True)
 
 except Exception as e:
-    st.error(f"Error loading application: {e}")
+    st.error(f"Error: {e}")
