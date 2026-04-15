@@ -74,7 +74,7 @@ try:
             df_ecobici['is_selected'] = False
 
         # Legend Note
-        st.info("🔵 Blue: Full of bikes\n\n🔴 Red: Empty/Few bikes")
+        st.info("\t🔵 Blue: Full of bikes\n\n🔴 Red: Empty/Few bikes")
 
     with col2:
         # Markers size logic: Selected station becomes much larger
