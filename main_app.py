@@ -21,6 +21,7 @@ url='https://gbfs.mex.lyftbikes.com/gbfs/gbfs.json'
 website_data=requests.get(url).json()
 urls=website_data['data']['en']['feeds']
 url_data=[u['url'] for u in urls if 'station' in u['url']]
+url_data.sort()
 data1=requests.get(url_data[0]).json()
 df1=pd.DataFrame(data1['data']['stations'])
 st.write(df1.columns)
