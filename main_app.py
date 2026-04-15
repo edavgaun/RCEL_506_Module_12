@@ -24,7 +24,6 @@ url_data=[u['url'] for u in urls if 'station' in u['url']]
 url_data.sort()
 data1=requests.get(url_data[0]).json()
 df1=pd.DataFrame(data1['data']['stations'])
-st.write(df1.columns)
 df1=df1[['station_id', 'lat', 'lon', 'capacity']]
 data2=requests.get(url_data[1]).json()
 df2=pd.DataFrame(data2['data']['stations'])
