@@ -112,8 +112,11 @@ try:
         st.plotly_chart(fig, use_container_width=True)
 
     # Optional Table
-    with st.expander("View Raw Calculation Data"):
-        st.write(df_ecobici[['station_id', 'name', 'availability_pct', 'total_cap']])
+    # Filter the dataframe based on the selection
+    specific_data = df_ecobici[df_ecobici['name'] == selected_id]
+    
+    # Display only the relevant columns for that one station
+    st.table(specific_data[['station_id', 'name', 'availability_pct', 'total_cap']])
 
 except Exception as e:
     st.error(f"Error loading application: {e}")
