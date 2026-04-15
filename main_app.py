@@ -68,31 +68,38 @@ try:
             df_filtered['is_selected'] = False
 
     with col2:
+        # We define the size of markers
         df_filtered['marker_size'] = df_filtered['is_selected'].map({True: 35, False: 10})
 
         fig = px.scatter_mapbox(
             df_filtered,
-            lat="lat", lon="lon",
+            lat="lat", 
+            lon="lon",
             hover_name="name",
             color="display_score",
-            color_continuous_scale="RdYlBu", # Blue will always represent "Plenty of what you need"
+            color_continuous_scale="RdYlBu", 
             size="marker_size",
-            size_max=15,
+            size_max=20, # Increased slightly to show the border better
             zoom=zoom_val,
             center={"lat": lat_map, "lon": lon_map},
             height=600,
             labels={"display_score": label_score}
         )
+
+        # ADDING BLACK EDGES HERE
         fig.update_traces(
             marker=dict(
-                line=dict(width=2, color='black')
+                line=dict(width=2, color='black') # Width of 2px, Color Black
             ),
             selector=dict(mode='markers')
         )
 
-        fig.update_layout(mapbox_style="carto-positron", margin={"r":0,"t":0,"l":0,"b":0})
+        fig.update_layout(
+            mapbox_style="carto-positron", 
+            margin={"r":0,"t":0,"l":0,"b":0}
+        )
+        
         st.plotly_chart(fig, use_container_width=True)
-
     # --- TABLE ---
     with st.expander("Detailed Statistics"):
         st.dataframe(
