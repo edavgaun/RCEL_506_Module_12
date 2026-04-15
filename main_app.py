@@ -83,6 +83,12 @@ try:
             height=600,
             labels={"display_score": label_score}
         )
+        fig.update_traces(
+            marker=dict(
+                line=dict(width=2, color='black')
+            ),
+            selector=dict(mode='markers')
+        )
 
         fig.update_layout(mapbox_style="carto-positron", margin={"r":0,"t":0,"l":0,"b":0})
         st.plotly_chart(fig, use_container_width=True)
