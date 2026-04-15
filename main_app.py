@@ -7,34 +7,28 @@ from datetime import datetime
 # 1. Page Config
 st.set_page_config(page_title="EcoBici Real-Time CDMX", layout="wide")
 
-# --- DATA FETCHING (OPTIMIZED WITH CACHING) ---
-@st.cache_data(ttl=60) # Only fetches data once per minute
+# --- DATA FETCHING ---
+@st.cache_data(ttl=60)
 def load_ecobici_data():
-    # URLs for Station Info and Real-time Status
     url_info = "https://gbfs.mex.lyftbikes.com/gbfs/en/station_information.json"
     url_status = "https://gbfs.mex.lyftbikes.com/gbfs/en/station_status.json"
     
-    # Requesting data
     res_info = requests.get(url_info).json()
     df_info = pd.DataFrame(res_info['data']['stations'])
-    
     res_status = requests.get(url_status).json()
     df_status = pd.DataFrame(res_status['data']['stations'])
     
-    # Merging and cleaning
     df = pd.merge(
         df_info[['station_id', 'name', 'lat', 'lon']], 
         df_status[['station_id', 'num_bikes_available', 'num_docks_available']], 
         on='station_id'
     )
     
-    # Normalization Logic
     df['total_cap'] = df['num_bikes_available'] + df['num_docks_available']
     df['availability_pct'] = (df['num_bikes_available'] / df['total_cap']).fillna(0) * 100
     
     return df
 
-# Load the data
 try:
     df_ecobici = load_ecobici_data()
 
@@ -42,7 +36,6 @@ try:
     st.title("🚲 EcoBici Station Finder: CDMX")
     st.caption(f"Created by: Edgar Avalos Gauna | Data updated: {datetime.now().strftime('%d/%m/%Y - %H:%M:%S')}")
 
-    # Quick Metrics
     m1, m2, m3 = st.columns(3)
     m1.metric("Total Stations", len(df_ecobici))
     m2.metric("Available Bikes", df_ecobici['num_bikes_available'].sum())
@@ -56,11 +49,9 @@ try:
     with col1:
         st.subheader("Controls")
         
-        # 1. Standard Dropdown
         station_list = ["None"] + sorted(df_ecobici['station_id'].unique(), key=int)
         selected_id = st.selectbox("Select a Station (ID):", station_list)
         
-        # 2. PANIC BUTTONS (The Problem Solver)
         st.write("---")
         st.markdown("### 🚨 Quick Filters")
         status_filter = st.radio(
@@ -68,22 +59,32 @@ try:
             ["Show All", "Find a Bike (Stations with Bikes)", "Park my Bike (Stations with Docks)"]
         )
     
-        # Logic to filter the dataframe based on the "Panic" selection
+        # Handle Filtering
         if status_filter == "Find a Bike (Stations with Bikes)":
-            df_filtered = df_ecobici[df_ecobici['num_bikes_available'] > 0]
-            st.warning(f"Showing {len(df_filtered)} stations with bikes available.")
+            df_filtered = df_ecobici[df_ecobici['num_bikes_available'] > 0].copy()
+            st.warning(f"Showing {len(df_filtered)} stations with bikes.")
         elif status_filter == "Park my Bike (Stations with Docks)":
-            df_filtered = df_ecobici[df_ecobici['num_docks_available'] > 0]
-            st.success(f"Showing {len(df_filtered)} stations with empty docks.")
+            df_filtered = df_ecobici[df_ecobici['num_docks_available'] > 0].copy()
+            st.success(f"Showing {len(df_filtered)} stations with docks.")
         else:
-            df_filtered = df_ecobici
+            df_filtered = df_ecobici.copy()
     
-        # 3. Zoom Control
         zoom_val = st.slider("Map Zoom Level:", 10, 18, 13)
 
+        # Highlight & Center Logic
+        if selected_id != "None":
+            selected_row = df_ecobici[df_ecobici['station_id'] == selected_id].iloc[0]
+            lat_map, lon_map = selected_row['lat'], selected_row['lon']
+            # Create the missing 'is_selected' column
+            df_filtered['is_selected'] = df_filtered['station_id'] == selected_id
+            st.info(f"📍 Selected: {selected_row['name']}")
+        else:
+            lat_map, lon_map = df_ecobici['lat'].mean(), df_ecobici['lon'].mean()
+            df_filtered['is_selected'] = False
+
     with col2:
-        # Markers size logic: Selected station becomes much larger
-        df_ecobici['marker_size'] = df_ecobici['is_selected'].map({True: 50, False: 10})
+        # Create marker size based on selection
+        df_filtered['marker_size'] = df_filtered['is_selected'].map({True: 30, False: 10})
 
         fig = px.scatter_mapbox(
             df_filtered,
@@ -97,10 +98,11 @@ try:
                 "availability_pct": ":.2f",
                 "lat": False,
                 "lon": False,
-                "marker_size": False
+                "marker_size": False,
+                "is_selected": False
             },
             color="availability_pct",
-            color_continuous_scale="RdYlBu", # Red (Empty) to Blue (Full)
+            color_continuous_scale="RdYlBu",
             size="marker_size",
             size_max=15,
             zoom=zoom_val,
@@ -118,14 +120,10 @@ try:
 
     # --- 5. DATA TABLE ---
     with st.expander("View Station Details"):
-        if selected_id != "None":
-            # Filter by station_id since that's what selected_id holds
-            display_df = df_ecobici[df_ecobici['station_id'] == selected_id]
-        else:
-            display_df = df_ecobici
+        display_df = df_ecobici[df_ecobici['station_id'] == selected_id] if selected_id != "None" else df_filtered
 
         st.dataframe(
-            display_df[['station_id', 'name', 'availability_pct', 'total_cap', 'num_bikes_available']]
+            display_df[['station_id', 'name', 'availability_pct', 'num_bikes_available', 'num_docks_available']]
             .style.background_gradient(cmap='RdYlGn', subset=['availability_pct'])
             .format({'availability_pct': '{:.1f}%'}), 
             use_container_width=True
