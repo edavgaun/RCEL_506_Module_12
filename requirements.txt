@@ -5,3 +5,4 @@ seaborn
 folium
 requests
 streamlit_folium
+plotly
